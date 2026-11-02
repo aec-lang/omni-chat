@@ -6,12 +6,12 @@ await mkdir('test-artifacts', { recursive: true })
 
 for (const [name, engine] of Object.entries({ chromium, webkit })) {
   const browser = await engine.launch()
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, serviceWorkers: 'block' })
   const page = await context.newPage()
   let downloads = 0
   let toolResults = 0
   page.on('download', () => { downloads += 1 })
-  await page.route('https://fixture.omni.test/**', async route => {
+  await page.route('http://127.0.0.1:4173/v1/**', async route => {
     const request = route.request()
     const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,OPTIONS' }
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
@@ -38,7 +38,7 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
     await page.getByRole('heading', { name: 'One app. Every medium.' }).waitFor()
     await page.getByRole('button', { name: 'Open chat menu' }).click()
     await page.getByRole('button', { name: 'Settings', exact: true }).click()
-    await page.getByRole('textbox', { name: /^API URL/ }).fill('https://fixture.omni.test')
+    await page.getByRole('textbox', { name: /^API URL/ }).fill('http://127.0.0.1:4173')
     await page.getByRole('button', { name: 'Save settings', exact: true }).click()
     await page.getByRole('button', { name: 'Open chat menu' }).click()
     await page.getByRole('button', { name: 'New chat', exact: true }).click()

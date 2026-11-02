@@ -1,0 +1,43 @@
+name: Mobile UI checks
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build:mobile
+      - name: Install browser test tools
+        run: |
+          npm install --prefix "$RUNNER_TEMP/omni-ui-tools" --ignore-scripts playwright@1.56.1
+          "$RUNNER_TEMP/omni-ui-tools/node_modules/.bin/playwright" install --with-deps chromium webkit
+      - name: Check mobile chat and agent flows
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/omni-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid"' EXIT
+          for attempt in {1..30}; do
+            if curl --silent --fail http://127.0.0.1:4173 > /dev/null; then break; fi
+            sleep 1
+          done
+          OMNI_PLAYWRIGHT_MODULE="$RUNNER_TEMP/omni-ui-tools/node_modules/playwright/index.mjs" node scripts/mobile-smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: OmniChat-Mobile-UI
+          path: test-artifacts/*.png
+          if-no-files-found: warn

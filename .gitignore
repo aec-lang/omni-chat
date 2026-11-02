@@ -13,3 +13,4 @@ android/local.properties
 *.ipa
 *.p12
 *.mobileprovision
+test-artifacts/

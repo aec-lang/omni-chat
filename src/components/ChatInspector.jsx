@@ -7,6 +7,12 @@ import { sanitizeFilename } from '../utils/text'
 function ChatInspector({ chat, onClose }) {
   const { updateChat, duplicateChat } = useApp()
   const [tag, setTag] = useState('')
+  const [exportError, setExportError] = useState('')
+  const exportFile = async (action) => {
+    setExportError('')
+    try { await action() }
+    catch { setExportError('Could not export the conversation. Please try again.') }
+  }
 
   const addTag = (event) => {
     event.preventDefault()
@@ -44,8 +50,8 @@ function ChatInspector({ chat, onClose }) {
             <Archive size={16} /> {chat.archived ? 'Unarchive' : 'Archive'}
           </button>
           <button type="button" onClick={() => duplicateChat(chat.id)}><Copy size={16} /> Duplicate</button>
-          <button type="button" onClick={() => exportChatMarkdown(chat)}><Download size={16} /> Markdown</button>
-          <button type="button" onClick={() => downloadJson(chat, `${sanitizeFilename(chat.title)}.json`)}><Braces size={16} /> JSON</button>
+          <button type="button" onClick={() => exportFile(() => exportChatMarkdown(chat))}><Download size={16} /> Markdown</button>
+          <button type="button" onClick={() => exportFile(() => downloadJson(chat, `${sanitizeFilename(chat.title)}.json`))}><Braces size={16} /> JSON</button>
           <button
             type="button"
             onClick={async () => {
@@ -62,6 +68,7 @@ function ChatInspector({ chat, onClose }) {
           </button>
         </div>
 
+        {exportError && <p role="alert" className="message-error">{exportError}</p>}
         <label className="field">
           <span>Private note</span>
           <textarea rows="5" value={chat.note} onChange={(event) => updateChat(chat.id, { note: event.target.value })} placeholder="Add context that is not sent to the model..." />

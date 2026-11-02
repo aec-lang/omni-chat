@@ -41,3 +41,16 @@ test('provider and prompt normalization rejects unusable records', () => {
   assert.equal(normalizeProviderProfiles([{ apiUrl: ' https://api.example ' }])[0].apiUrl, 'https://api.example')
   assert.equal(normalizeCustomPrompts([{ prompt: '' }, { prompt: 'Use me' }]).length, 1)
 })
+
+test('chat restore sanitizes document collections and marks interrupted runs', () => {
+  const chat = normalizeChat({ agentEnabled: true, messages: [{
+    status: 'loading', documents: {}, drafts: [null, { id: 'draft', name: 'note.md', content: 'text' }],
+    agentEvents: [{ id: 'call', label: 'Read document', status: 'running', step: 1 }],
+  }] })
+  assert.equal(chat.agentEnabled, true)
+  assert.equal(chat.messages[0].status, 'cancelled')
+  assert.deepEqual(chat.messages[0].documents, [])
+  assert.equal(chat.messages[0].drafts.length, 1)
+  assert.equal(chat.messages[0].agentEvents[0].status, 'cancelled')
+  assert.equal(normalizeChat({ agentEnabled: 'true' }).agentEnabled, false)
+})

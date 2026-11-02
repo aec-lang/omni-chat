@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Download } from 'lucide-react'
+import { Capacitor } from '@capacitor/core'
+import { useI18n } from '../i18n'
 
 function PwaInstall() {
   const [event, setEvent] = useState(null)
+  const { t } = useI18n()
 
   useEffect(() => {
     const capture = (installEvent) => {
@@ -18,7 +21,11 @@ function PwaInstall() {
     }
   }, [])
 
-  if (!event) return null
+  if (Capacitor.isNativePlatform()) return null
+  const iphone = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  if (!event) return iphone && !navigator.standalone
+    ? <p className="pwa-help">{t('iphoneInstall')}</p>
+    : null
 
   return (
     <button

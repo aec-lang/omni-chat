@@ -11,11 +11,9 @@ export function downloadBlob(blob, filename) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-export function downloadJson(data, filename) {
-  downloadBlob(
-    new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' }),
-    filename,
-  )
+export async function downloadJson(data, filename) {
+  const { saveTextFile } = await import('./native.js')
+  await saveTextFile(JSON.stringify(data, null, 2), filename)
 }
 
 export function chatToMarkdown(chat) {
@@ -37,9 +35,7 @@ export function chatToMarkdown(chat) {
   return lines.join('\n')
 }
 
-export function exportChatMarkdown(chat) {
-  downloadBlob(
-    new Blob([chatToMarkdown(chat)], { type: 'text/markdown;charset=utf-8' }),
-    `${sanitizeFilename(chat.title)}.md`,
-  )
+export async function exportChatMarkdown(chat) {
+  const { saveTextFile } = await import('./native.js')
+  await saveTextFile(chatToMarkdown(chat), `${sanitizeFilename(chat.title)}.md`)
 }

@@ -13,8 +13,26 @@ OmniChat is a mobile-first, local-first chat client for OpenAI-compatible APIs. 
 - Automatic right-to-left direction for Persian and Arabic messages
 - Configurable system prompt, temperature, voice, and image size
 - LocalStorage persistence with JSON backup and restore
-- Capacitor 6 Android packaging
-- GitHub Actions builds for Web, GitHub Pages, and Android APK
+- Capacitor 6 Android and iOS packaging
+- Optional agent mode: search saved chats, read selected text documents, and prepare file drafts
+- Agent activity log, cancellation and a six-step execution limit
+- Native secure storage for API keys, with migration from existing settings
+- Native share sheet for document drafts, JSON backups and Markdown exports
+- GitHub Actions builds for Web, GitHub Pages, Android APK, and iOS Simulator
+
+## Mobile agent
+
+Choose a text model, enable **Agent mode** above the composer, and ask it to work with saved conversations or an attached text document. Tools require an OpenAI-compatible model supporting function calls. For example: “Find my conversations about travel and prepare a Markdown summary.”
+
+Use **Attach text file** for TXT, MD, JSON, CSV or LOG documents up to 64 KB. The agent can read the attachment and prepare a file preview; tap **Save / Share** yourself to export it. It can access saved conversation text when agent mode is enabled. Requested text goes to your chosen provider. It cannot operate other apps or run system commands.
+
+## iPhone / iPad
+
+- **Web app:** open the deployed app in Safari and choose **Share → Add to Home Screen**. This requires an API provider allowing browser CORS.
+- **Native build:** the main workflow compiles an iOS Simulator app on macOS. A separate manual workflow exports a signed IPA after Apple signing secrets are configured.
+- **Distribution:** the simulator artifact is not installable on a real iPhone. TestFlight/App Store and Ad Hoc builds need appropriate Apple signing and provisioning.
+
+See [iOS build and distribution instructions](docs/IOS.md), including the exact signing secrets.
 
 ## API compatibility
 
@@ -49,6 +67,7 @@ The workflow produces:
 
 - `OmniChat-Web` artifact
 - `OmniChat-APK` artifact containing `OmniChat-debug.apk`
+- `OmniChat-iOS-Simulator` artifact for Apple's simulator
 - A GitHub Pages deployment from `main`
 
 To publish the APK as a GitHub Release asset, create and push a version tag:
@@ -65,7 +84,7 @@ The tagged workflow creates release notes and attaches `OmniChat-debug.apk`.
 Local installation is optional; GitHub Actions performs the official builds.
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -93,7 +112,7 @@ The default Vite base is `/repo-name/`, matching the requested configuration. In
 
 ## Privacy and storage
 
-There is no OmniChat backend, user account, or analytics service. Settings and chats are stored in browser LocalStorage. The API key is stored as plain local application data, so do not use OmniChat on an untrusted or shared device.
+There is no OmniChat backend, user account, or analytics service. Chats and settings use LocalStorage. Native iOS/Android builds store API credentials in secure device storage and migrate existing keys before clearing their plaintext copies. The web app still stores API keys in browser storage. Prompts and any document or conversation text requested by the agent are sent to the selected model provider.
 
 Large base64 media can exceed LocalStorage quotas. OmniChat shows a warning when persistence fails; download important generated media and export backups regularly.
 

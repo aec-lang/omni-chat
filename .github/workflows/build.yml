@@ -25,7 +25,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+      - run: npm ci
       - run: npm test
       - name: Build web app
         run: npm run build
@@ -70,7 +70,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - run: npm install
+      - run: npm ci
       - run: npm test
       - name: Build web assets for Capacitor
         run: npm run build:android
@@ -94,3 +94,34 @@ jobs:
         with:
           generate_release_notes: true
           files: OmniChat-debug.apk
+
+  build-ios:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Create iOS project and configure privacy manifest
+        run: |
+          npm run build:mobile
+          npx cap add ios
+          npx cap sync ios
+          ruby scripts/configure-ios.rb
+      - name: Build iPhone Simulator app
+        run: |
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App \
+            -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath ios-build CODE_SIGNING_ALLOWED=NO build
+          ditto -c -k --sequesterRsrc --keepParent \
+            ios-build/Build/Products/Debug-iphonesimulator/App.app OmniChat-iOS-Simulator.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OmniChat-iOS-Simulator
+          path: OmniChat-iOS-Simulator.zip
+          retention-days: 30

@@ -39,9 +39,9 @@ function writeStorage(key, value) {
   }
 }
 
-export function AppProvider({ children }) {
+export function AppProvider({ children, initialData }) {
   const [settings, setSettings] = useState(() =>
-    normalizeSettings(readStorage(SETTINGS_KEY, defaultSettings)),
+    normalizeSettings(initialData?.settings ?? readStorage(SETTINGS_KEY, defaultSettings)),
   )
   const [chats, setChats] = useState(() => {
     const stored = readStorage(CHATS_KEY, [])
@@ -54,7 +54,7 @@ export function AppProvider({ children }) {
     normalizeCustomPrompts(readStorage(CUSTOM_PROMPTS_KEY, [])),
   )
   const [providerProfiles, setProviderProfiles] = useState(() =>
-    normalizeProviderProfiles(readStorage(PROVIDERS_KEY, [])),
+    normalizeProviderProfiles(initialData?.profiles ?? readStorage(PROVIDERS_KEY, [])),
   )
   const [view, setView] = useState('chat')
   const [draft, setDraft] = useState('')
@@ -63,10 +63,10 @@ export function AppProvider({ children }) {
   chatsRef.current = chats
 
   useEffect(() => {
-    if (!writeStorage(SETTINGS_KEY, settings)) {
-      setStorageWarning('Settings could not be saved on this device.')
-    }
-  }, [settings])
+    initialData.persist(settings, providerProfiles).catch(() => {
+      setStorageWarning('Connection settings could not be saved. Keep the app open and retry saving before closing it.')
+    })
+  }, [settings, providerProfiles, initialData])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -88,10 +88,6 @@ export function AppProvider({ children }) {
   useEffect(() => {
     writeStorage(CUSTOM_PROMPTS_KEY, customPrompts)
   }, [customPrompts])
-
-  useEffect(() => {
-    writeStorage(PROVIDERS_KEY, providerProfiles)
-  }, [providerProfiles])
 
   useEffect(() => {
     const flushChats = () => writeStorage(CHATS_KEY, chatsRef.current)

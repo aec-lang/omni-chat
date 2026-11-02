@@ -46,11 +46,24 @@ async function apiFetch(url, options = {}, timeoutMs = 120000) {
   const timer = window.setTimeout(() => timeoutController.abort(), timeoutMs)
   const sourceSignal = options.signal
   const abortFromSource = () => timeoutController.abort()
+  if (sourceSignal?.aborted) timeoutController.abort()
   sourceSignal?.addEventListener('abort', abortFromSource, { once: true })
 
   try {
     return await fetch(url, { ...options, signal: timeoutController.signal })
   } catch (error) {
+    if (error instanceof TypeError && !timeoutController.signal.aborted) {
+      const { nativeJsonFallback } = await import('../utils/nativeHttp.js')
+      try {
+        const fallback = await nativeJsonFallback(url, options, timeoutController.signal)
+        if (fallback) return fallback
+      } catch (nativeError) {
+        if (timeoutController.signal.aborted && !sourceSignal?.aborted) {
+          throw new Error('The API request timed out. Try again or check the provider status.')
+        }
+        throw friendlyNetworkError(nativeError)
+      }
+    }
     if (timeoutController.signal.aborted && !sourceSignal?.aborted) {
       throw new Error('The API request timed out. Try again or check the provider status.')
     }
@@ -219,12 +232,21 @@ export function useApi() {
     const decoder = new TextDecoder()
     let buffer = ''
     let receivedText = false
+    let streamDone = false
+    let timedOut = false
+    const cancelReader = () => { reader.cancel().catch(() => {}) }
+    const streamTimer = window.setTimeout(() => {
+      timedOut = true
+      cancelReader()
+    }, 300000)
+    signal?.addEventListener('abort', cancelReader, { once: true })
 
     const processLine = (line) => {
       const trimmed = line.trim()
       if (!trimmed || trimmed.startsWith(':')) return
       const chunk = trimmed.startsWith('data:') ? trimmed.slice(5).trim() : trimmed
-      if (!chunk || chunk === '[DONE]') return
+      if (chunk === '[DONE]') { streamDone = true; return }
+      if (!chunk) return
       try {
         const token = extractStreamToken(JSON.parse(chunk))
         if (token) {
@@ -236,16 +258,29 @@ export function useApi() {
       }
     }
 
-    while (true) {
-      const { value, done } = await reader.read()
-      buffer += decoder.decode(value || new Uint8Array(), { stream: !done })
-      const lines = buffer.split(/\r?\n/)
-      buffer = lines.pop() || ''
-      lines.forEach(processLine)
-      if (done) break
+    try {
+      while (!streamDone) {
+        if (signal?.aborted) throw new DOMException('Request cancelled.', 'AbortError')
+        const { value, done } = await reader.read()
+        if (signal?.aborted) throw new DOMException('Request cancelled.', 'AbortError')
+        if (timedOut) throw new Error('The response stream timed out. Please retry.')
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done })
+        const lines = buffer.split(/\r?\n/)
+        buffer = lines.pop() || ''
+        for (const line of lines) {
+          processLine(line)
+          if (streamDone) break
+        }
+        if (done) break
+      }
+      if (buffer.trim() && !streamDone) processLine(buffer)
+      if (!receivedText) throw new Error('The API completed without returning text.')
+    } finally {
+      window.clearTimeout(streamTimer)
+      signal?.removeEventListener('abort', cancelReader)
+      await reader.cancel().catch(() => {})
+      reader.releaseLock()
     }
-    if (buffer.trim()) processLine(buffer)
-    if (!receivedText) throw new Error('The API completed without returning text.')
   }
 
   const generateImage = async ({ apiUrl, apiKey, model, prompt, imageSize, signal }) => {
@@ -329,5 +364,19 @@ export function useApi() {
     return toDataUrl(await response.blob())
   }
 
-  return { fetchModels, testConnection, streamChat, generateImage, generateAudio, generateVideo }
+  const agentChat = async ({ apiUrl, apiKey, model, messages, tools, signal }) => {
+    const response = await apiFetch(`${cleanApiUrl(apiUrl)}/v1/chat/completions`, {
+      method: 'POST',
+      headers: requestHeaders(apiKey, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ model, messages, tools, tool_choice: 'auto', stream: false }),
+      signal,
+    })
+    await ensureOk(response)
+    const payload = await response.json()
+    const message = payload?.choices?.[0]?.message
+    if (!message || typeof message !== 'object') throw new Error('The provider returned an invalid agent response. Choose a model supporting tools.')
+    return message
+  }
+
+  return { fetchModels, testConnection, streamChat, agentChat, generateImage, generateAudio, generateVideo }
 }

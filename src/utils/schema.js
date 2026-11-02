@@ -24,6 +24,7 @@ export function makeChat(initial = {}) {
     archived: false,
     tags: [],
     note: '',
+    agentEnabled: false,
     createdAt: Date.now(),
     updatedAt: Date.now(),
     ...initial,
@@ -63,7 +64,12 @@ export function normalizeMessage(message) {
     id: typeof message.id === 'string' ? message.id : makeId(),
     role: message.role === 'user' ? 'user' : 'assistant',
     content: typeof message.content === 'string' ? message.content : '',
+    status: message.status === 'loading' ? 'cancelled' : message.status,
+    error: message.status === 'loading' ? 'Generation was interrupted. Please retry.' : typeof message.error === 'string' ? message.error : '',
     prompt: typeof message.prompt === 'string' ? message.prompt : '',
+    documents: Array.isArray(message.documents) ? message.documents.filter(document => document && typeof document.id === 'string' && typeof document.name === 'string' && typeof document.text === 'string').slice(0, 1).map(document => ({ id: document.id.slice(0, 200), name: document.name.slice(0, 100), text: document.text.slice(0, 65536) })) : [],
+    drafts: Array.isArray(message.drafts) ? message.drafts.filter(draft => draft && typeof draft.id === 'string' && typeof draft.name === 'string' && typeof draft.content === 'string').slice(0, 24).map(draft => ({ id: draft.id.slice(0, 200), name: draft.name.slice(0, 100), content: draft.content.slice(0, 20000) })) : [],
+    agentEvents: Array.isArray(message.agentEvents) ? message.agentEvents.filter(event => event && typeof event.id === 'string' && typeof event.label === 'string').slice(0, 24).map(event => ({ id: event.id.slice(0, 200), label: event.label.slice(0, 100), step: Number(event.step) || 1, status: ['done', 'error', 'cancelled'].includes(event.status) ? event.status : 'cancelled' })) : [],
     url: typeof message.url === 'string' ? message.url : '',
     createdAt: Number(message.createdAt) || Date.now(),
   }
@@ -86,6 +92,7 @@ export function normalizeChat(chat) {
       ? [...new Set(chat.tags.filter((tag) => typeof tag === 'string').map((tag) => tag.trim()).filter(Boolean))].slice(0, 12)
       : [],
     note: typeof chat.note === 'string' ? chat.note : '',
+    agentEnabled: chat.agentEnabled === true,
     messages: Array.isArray(chat.messages)
       ? chat.messages.map(normalizeMessage).filter(Boolean)
       : [],

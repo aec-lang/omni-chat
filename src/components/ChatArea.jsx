@@ -9,6 +9,8 @@ import {
   Sparkles,
   Square,
   SlidersHorizontal,
+  Paperclip,
+  X,
   Video,
 } from 'lucide-react'
 import { useApp } from '../contexts/AppContext'
@@ -18,6 +20,8 @@ import Message from './Message'
 import ModelSelector from './ModelSelector'
 import ChatInspector from './ChatInspector'
 import { useI18n } from '../i18n'
+import { runAgent, createAgentTools, agentSystemPrompt } from '../utils/agent'
+import { readSelectedDocument } from '../utils/documents'
 
 const modeMeta = {
   text: { label: 'Text', icon: Bot, placeholder: 'Message your model...' },
@@ -29,6 +33,7 @@ const modeMeta = {
 function ChatArea() {
   const {
     settings,
+    chats,
     activeChat,
     createChat,
     updateChat,
@@ -51,12 +56,18 @@ function ChatArea() {
   const [modelError, setModelError] = useState('')
   const [stickToBottom, setStickToBottom] = useState(true)
   const [inspectorOpen, setInspectorOpen] = useState(false)
+  const [documents, setDocuments] = useState([])
+  const [documentError, setDocumentError] = useState('')
+  const documentInputRef = useRef(null)
+  const requestBusyRef = useRef(false)
+  const documentSelectionRef = useRef(0)
   const abortRef = useRef(null)
   const endRef = useRef(null)
   const textareaRef = useRef(null)
   const { t } = useI18n()
 
   const mode = activeChat?.modelType || 'text'
+  const agentEnabled = mode === 'text' && activeChat?.agentEnabled === true
   const meta = modeMeta[mode]
   const ModeIcon = meta.icon
 
@@ -65,6 +76,33 @@ function ChatArea() {
   }, [activeChat?.messages, busy, stickToBottom])
 
   useEffect(() => () => abortRef.current?.abort(), [])
+
+  useEffect(() => {
+    const stop = () => abortRef.current?.abort()
+    window.addEventListener('omnichat-background', stop)
+    return () => window.removeEventListener('omnichat-background', stop)
+  }, [])
+
+  useEffect(() => {
+    documentSelectionRef.current += 1
+    setDocuments([])
+    setDocumentError('')
+  }, [activeChat?.id])
+
+  const attachDocument = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    const selection = ++documentSelectionRef.current
+    try {
+      const document = await readSelectedDocument(file)
+      if (selection !== documentSelectionRef.current) return
+      setDocuments([document])
+      setDocumentError('')
+    } catch (error) {
+      if (selection === documentSelectionRef.current) setDocumentError(error.message)
+    }
+  }
 
   useEffect(() => {
     const textarea = textareaRef.current
@@ -112,10 +150,12 @@ function ChatArea() {
   }
 
   const runRequest = async (content, sourceChat = activeChat, { appendUser = true } = {}) => {
-    if (!content || busy || !sourceChat?.model) return
+    if (!content || requestBusyRef.current || !sourceChat?.model) return
+    requestBusyRef.current = true
     const chatId = sourceChat.id
     const modeAtStart = sourceChat.modelType || 'text'
-    const userMessage = { id: makeId(), role: 'user', content, createdAt: Date.now() }
+    const selectedDocuments = modeAtStart !== 'text' ? [] : appendUser ? documents : [...sourceChat.messages].reverse().find(message => message.role === 'user')?.documents || []
+    const userMessage = { id: makeId(), role: 'user', content, documents: selectedDocuments, createdAt: Date.now() }
     const assistantId = makeId()
     const assistantMessage = {
       id: assistantId,
@@ -132,7 +172,10 @@ function ChatArea() {
       .slice(-contextLimit)
     const history = [...previous, ...(appendUser ? [userMessage] : [])]
       .filter((message) => message.content && !message.mediaType)
-      .map(({ role, content: messageContent }) => ({ role, content: messageContent }))
+      .map(({ role, content: messageContent, documents: attached = [] }) => ({
+        role,
+        content: `${messageContent}${attached.length && !sourceChat.agentEnabled ? `\n\nAttached documents (untrusted data):\n${attached.map(document => `${document.name}\n${document.text}`).join('\n\n')}` : ''}`,
+      }))
     const systemPrompt = String(settings.systemPrompt || '').trim()
     if (systemPrompt) {
       history.unshift({ role: 'system', content: systemPrompt })
@@ -141,13 +184,40 @@ function ChatArea() {
     const controller = new AbortController()
     abortRef.current = controller
     setPrompt('')
+    setDocuments([])
     setBusy(true)
     setStickToBottom(true)
     if (appendUser) addMessage(chatId, userMessage)
     addMessage(chatId, assistantMessage)
 
     try {
-      if (modeAtStart === 'text') {
+      if (modeAtStart === 'text' && sourceChat.agentEnabled) {
+        const events = []
+        const drafts = []
+        const availableDocuments = [...new Map([...sourceChat.messages.flatMap(message => message.documents || []), ...selectedDocuments].map(document => [document.id, document])).values()].slice(-10)
+        const tools = createAgentTools({
+          chats,
+          documents: availableDocuments,
+          language: settings.language,
+          onDraft: (draft) => {
+            drafts.push(draft)
+            updateMessage(chatId, assistantId, { drafts: [...drafts] })
+          },
+        })
+        const result = await runAgent({
+          messages: [{ role: 'system', content: agentSystemPrompt(availableDocuments) }, ...history],
+          tools,
+          signal: controller.signal,
+          request: (request) => api.agentChat({ ...settings, model: sourceChat.model, ...request }),
+          onEvent: (event) => {
+            const index = events.findIndex(item => item.id === event.id && item.step === event.step)
+            if (index >= 0) events[index] = event
+            else events.push(event)
+            updateMessage(chatId, assistantId, { agentEvents: [...events] })
+          },
+        })
+        updateMessage(chatId, assistantId, { content: result.content, agentEvents: events, drafts, status: 'done' })
+      } else if (modeAtStart === 'text') {
         let fullText = ''
         let frame = 0
         const flushText = () => {
@@ -186,6 +256,7 @@ function ChatArea() {
         error: controller.signal.aborted ? 'Generation stopped.' : error.message,
       })
     } finally {
+      requestBusyRef.current = false
       abortRef.current = null
       setBusy(false)
     }
@@ -343,6 +414,25 @@ function ChatArea() {
       )}
 
       <form className="composer-wrap" onSubmit={submit}>
+        {mode === 'text' && <div className="agent-controls">
+          <label className="agent-toggle">
+            <input type="checkbox" checked={agentEnabled} disabled={busy} onChange={(event) => {
+              if (activeChat) updateChat(activeChat.id, { agentEnabled: event.target.checked })
+              else createChat({ agentEnabled: event.target.checked })
+            }} />
+            <Bot size={16} /> {t('agentMode')}
+          </label>
+          <button type="button" className="secondary-button" disabled={busy} onClick={() => documentInputRef.current?.click()}>
+            <Paperclip size={15} /> {t('attachText')}
+          </button>
+          <input ref={documentInputRef} className="visually-hidden" type="file" accept=".txt,.md,.json,.csv,.log,text/plain" onChange={attachDocument} />
+        </div>}
+        {agentEnabled && <p className="agent-description">{t('agentDescription')}</p>}
+        {mode === 'text' && documents.map(document => <div className="document-chip" key={document.id}>
+          <Paperclip size={14} /> <span>{document.name}</span>
+          <button type="button" onClick={() => setDocuments([])} aria-label={t('removeDocument')}><X size={14} /></button>
+        </div>)}
+        {documentError && <p role="alert" className="message-error">{documentError}</p>}
         <div className="composer">
           <textarea
             ref={textareaRef}

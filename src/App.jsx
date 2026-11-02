@@ -9,6 +9,7 @@ import Insights from './components/Insights'
 import GlobalSearch from './components/GlobalSearch'
 import MediaGallery from './components/MediaGallery'
 import { useI18n } from './i18n'
+import { Capacitor } from '@capacitor/core'
 
 function App() {
   const { view } = useApp()
@@ -16,6 +17,35 @@ function App() {
   const [online, setOnline] = useState(navigator.onLine)
   const [searchOpen, setSearchOpen] = useState(false)
   const { language, direction, t } = useI18n()
+
+  useEffect(() => {
+    const viewport = window.visualViewport
+    const resize = () => {
+      document.documentElement.style.setProperty('--app-height', `${viewport?.height || window.innerHeight}px`)
+    }
+    resize()
+    viewport?.addEventListener('resize', resize)
+    window.addEventListener('resize', resize)
+    return () => {
+      viewport?.removeEventListener('resize', resize)
+      window.removeEventListener('resize', resize)
+      document.documentElement.style.removeProperty('--app-height')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    let disposed = false
+    let listener
+    import('@capacitor/app').then(async ({ App: NativeApp }) => {
+      const handle = await NativeApp.addListener('appStateChange', ({ isActive }) => {
+        if (!isActive) window.dispatchEvent(new Event('omnichat-background'))
+      })
+      if (disposed) await handle.remove()
+      else listener = handle
+    }).catch(() => {})
+    return () => { disposed = true; listener?.remove() }
+  }, [])
 
   useEffect(() => {
     setSidebarOpen(false)

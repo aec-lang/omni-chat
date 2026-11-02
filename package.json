@@ -1,7 +1,7 @@
 {
   "name": "omnichat",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A mobile-first, local-first multimodal client for OpenAI-compatible APIs.",
   "type": "module",
   "engines": {
@@ -11,15 +11,24 @@
     "dev": "vite",
     "build": "vite build",
     "build:android": "vite build --base ./",
+    "build:mobile": "vite build --base ./",
     "test": "node --test",
     "preview": "vite preview",
     "android:add": "cap add android",
     "android:sync": "npm run build:android && cap sync android",
-    "android:open": "cap open android"
+    "android:open": "cap open android",
+    "ios:add": "cap add ios",
+    "ios:sync": "npm run build:mobile && cap sync ios && ruby scripts/configure-ios.rb",
+    "ios:open": "cap open ios"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.1",
     "@capacitor/core": "^6.2.1",
+    "@capacitor/app": "^6.0.0",
+    "@capacitor/ios": "^6.2.1",
+    "@capacitor/filesystem": "6.0.4",
+    "@capacitor/share": "6.0.4",
+    "@aparajita/capacitor-secure-storage": "6.0.1",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

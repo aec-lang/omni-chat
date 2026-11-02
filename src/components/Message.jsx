@@ -3,6 +3,7 @@ import { Bot, Check, Copy, Download, Pencil, RefreshCw, Trash2, User } from 'luc
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { detectTextDirection, formatRelativeTime } from '../utils/text'
+import AgentActivity from './AgentActivity'
 
 function Message({ message, onRetry, onEdit, onDelete }) {
   const isUser = message.role === 'user'
@@ -74,6 +75,7 @@ function Message({ message, onRetry, onEdit, onDelete }) {
             <span />
           </div>
         )}
+        <AgentActivity message={message} />
         {message.content && (
           <div className="markdown" dir={direction}>
             <ReactMarkdown

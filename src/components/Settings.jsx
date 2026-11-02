@@ -16,6 +16,7 @@ import {
 import { defaultSettings, useApp } from '../contexts/AppContext'
 import { cleanApiUrl, useApi } from '../hooks/useApi'
 import SystemDiagnostics from './SystemDiagnostics'
+import { downloadJson } from '../utils/export'
 
 const voices = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer']
 const imageSizes = ['1024x1024', '1792x1024', '1024x1792']
@@ -104,7 +105,7 @@ function Settings() {
     }
   }
 
-  const exportBackup = () => {
+  const exportBackup = async () => {
     const safeSettings = { ...settings, apiKey: includeKey ? settings.apiKey : '' }
     const payload = {
       app: 'OmniChat',
@@ -118,13 +119,11 @@ function Settings() {
       })),
       customPrompts,
     }
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `omnichat-backup-${new Date().toISOString().slice(0, 10)}.json`
-    anchor.click()
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    try {
+      await downloadJson(payload, `omnichat-backup-${new Date().toISOString().slice(0, 10)}.json`)
+    } catch {
+      setResult({ ok: false, message: 'Could not export the backup. Please try again.' })
+    }
   }
 
   const importBackup = async (event) => {
@@ -406,7 +405,7 @@ function Settings() {
 
         <div className="privacy-note">
           <strong>Local-first by design</strong>
-          <span>OmniChat has no analytics server and no account system. Browser storage can still be cleared by the OS, so export regular backups.</span>
+          <span>Native apps keep API keys in device secure storage; web apps use browser storage. Chats stay local, but prompts and agent-requested chat or document text go to your selected provider. Export regular backups.</span>
         </div>
         <SystemDiagnostics />
       </div>

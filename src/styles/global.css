@@ -83,7 +83,7 @@ textarea {
 .app-shell {
   display: flex;
   width: 100%;
-  height: 100dvh;
+  height: var(--app-height, 100dvh);
   min-height: 100%;
   background: var(--black);
 }
@@ -2720,4 +2720,28 @@ audio.generated-media {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+.agent-controls, .agent-toggle, .document-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.agent-controls { justify-content: space-between; margin-bottom: 8px; font-size: 12px; }
+.agent-controls .secondary-button { min-height: 34px; padding: 7px 10px; font-size: 12px; }
+.agent-description, .pwa-help { color: var(--muted-light); font-size: 11px; line-height: 1.8; margin: 6px 0 10px; }
+.document-chip { color: var(--muted-light); font-size: 12px; margin: 7px 0; }
+.document-chip button { background: transparent; padding: 5px; }
+.agent-activity, .document-draft { border: 1px solid var(--line); border-radius: 10px; margin: 10px 0; padding: 12px; font-size: 12px; }
+.agent-activity summary, .document-draft summary { cursor: pointer; }
+.agent-activity ol { padding: 0; list-style: none; }
+.agent-activity li { display: flex; align-items: center; gap: 8px; margin-top: 9px; }
+.agent-activity small { margin-inline-start: auto; color: var(--muted); }
+.document-draft pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; padding: 10px; background: var(--raised); }
+.startup-error { padding: 60px 24px; max-width: 600px; margin: auto; line-height: 1.8; }
+
+@media (hover: none) {
+  input, textarea, select { font-size: 16px; }
 }

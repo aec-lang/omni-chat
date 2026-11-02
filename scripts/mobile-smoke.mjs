@@ -38,7 +38,7 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
     await page.getByRole('heading', { name: 'One app. Every medium.' }).waitFor()
     await page.getByRole('button', { name: 'Open chat menu' }).click()
     await page.getByRole('button', { name: 'Settings', exact: true }).click()
-    await page.getByRole('textbox', { name: 'API URL', exact: true }).fill('https://fixture.omni.test')
+    await page.getByRole('textbox', { name: /^API URL/ }).fill('https://fixture.omni.test')
     await page.getByRole('button', { name: 'Save settings', exact: true }).click()
     await page.getByRole('button', { name: 'Open chat menu' }).click()
     await page.getByRole('button', { name: 'New chat', exact: true }).click()
